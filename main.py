@@ -1,5 +1,6 @@
 from flask import Flask, render_template_string, request, session as flask_session, redirect, url_for, jsonify
 from scratchclient import ScratchSession
+import os
 
 app = Flask(__name__)
 app.secret_key = "supersecret"
@@ -8,7 +9,7 @@ TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Scratch Messages</title>
+    <title>Scratch Messages Dashboard</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         .message { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 6px; }
@@ -41,6 +42,7 @@ TEMPLATE = """
         }
 
         let readMessages = JSON.parse(localStorage.getItem("readMessages") || "[]");
+        let notifiedMessages = JSON.parse(localStorage.getItem("notifiedMessages") || "[]");
 
         function markAsRead(id) {
             if(!readMessages.includes(id)) {
@@ -70,13 +72,15 @@ TEMPLATE = """
                         btn.textContent = "Mark as Read";
                         btn.onclick = () => markAsRead(id);
                         div.appendChild(btn);
+                        containerUnread.appendChild(div);
 
-                        // Notification for new message
-                        if(Notification.permission === "granted") {
+                        // Notification only once per message
+                        if(Notification.permission === "granted" && !notifiedMessages.includes(id)) {
                             new Notification("New Scratch Message", { body: msg.text });
+                            notifiedMessages.push(id);
+                            localStorage.setItem("notifiedMessages", JSON.stringify(notifiedMessages));
                         }
 
-                        containerUnread.appendChild(div);
                     } else {
                         containerRead.appendChild(div);
                     }
@@ -102,7 +106,6 @@ TEMPLATE = """
 """
 
 def format_message(msg):
-    """Return readable text for a message"""
     if msg.type == "followuser":
         return f"{msg.actor} followed you."
     elif msg.type == "loveproject":
@@ -132,8 +135,6 @@ def format_message(msg):
         return f"Unknown message type: {msg.type}"
 
 def unique_id(msg):
-    """Return a string uniquely identifying a message"""
-    # Use type + timestamp + actor + project/comment ID if available
     base = f"{msg.type}_{msg.created_timestamp}_{msg.actor}"
     if hasattr(msg, "comment_id") and msg.comment_id:
         base += f"_c{msg.comment_id}"
@@ -158,7 +159,7 @@ def messages():
 
     try:
         s = ScratchSession(flask_session["username"], flask_session["password"])
-        msgs = s.get_messages(limit=20)
+        msgs = s.get_messages()
         return jsonify([
             {
                 "created_timestamp": m.created_timestamp,
@@ -171,8 +172,6 @@ def messages():
         print("Error fetching messages:", e)
         return jsonify([])
 
-import os
-
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Render provides the PORT environment variable
+    port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
