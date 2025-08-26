@@ -11,31 +11,88 @@ TEMPLATE = """
 <head>
     <title>Scratch Messages Dashboard</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .message { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 6px; }
-        .time { font-size: 0.9em; color: gray; }
-        form { margin-bottom: 20px; }
-        input { margin: 5px; padding: 5px; }
-        button { margin-top: 5px; }
+        body {
+            font-family: "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            background: #f5f5f5;
+        }
+        header {
+            background: #8e44ad; /* purple instead of orange */
+            color: white;
+            padding: 15px;
+            font-size: 22px;
+            font-weight: bold;
+        }
+        main {
+            padding: 20px;
+            max-width: 800px;
+            margin: auto;
+        }
+        .section-title {
+            color: #e67e22; /* orange instead of purple */
+            font-size: 18px;
+            margin: 15px 0 10px;
+        }
+        .message {
+            background: white;
+            border: 2px solid #8e44ad;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        .message.unread {
+            border-color: #e67e22;
+            background: #fff6f0;
+        }
+        .time {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 6px;
+        }
+        button {
+            background: #e67e22;
+            border: none;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+        button:hover {
+            background: #ca5f0c;
+        }
+        form {
+            margin-bottom: 20px;
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+        }
+        input {
+            margin: 5px;
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
-    <h1>Scratch Messages Dashboard</h1>
+    <header>Scratch Messages (Purple/Orange Theme)</header>
+    <main>
+        <form method="POST" action="/login" onsubmit="saveLogin()">
+            <input type="text" id="username" name="username" placeholder="Username" required>
+            <input type="password" id="password" name="password" placeholder="Password" required>
+            <button type="submit">Login</button>
+        </form>
 
-    <form method="POST" action="/login" onsubmit="saveLogin()">
-        <input type="text" id="username" name="username" placeholder="Username" required>
-        <input type="password" id="password" name="password" placeholder="Password" required>
-        <button type="submit">Login</button>
-    </form>
+        <div class="section-title">Unread Messages</div>
+        <div id="unread"></div>
 
-    <h2>Unread Messages</h2>
-    <div id="unread"></div>
-
-    <h2>Read Messages</h2>
-    <div id="read"></div>
+        <div class="section-title">Read Messages</div>
+        <div id="read"></div>
+    </main>
 
     <script>
-        // Save login to localStorage
         function saveLogin() {
             localStorage.setItem("username", document.getElementById("username").value);
             localStorage.setItem("password", document.getElementById("password").value);
@@ -45,7 +102,7 @@ TEMPLATE = """
         let notifiedMessages = JSON.parse(localStorage.getItem("notifiedMessages") || "[]");
 
         function markAsRead(id) {
-            if(!readMessages.includes(id)) {
+            if (!readMessages.includes(id)) {
                 readMessages.push(id);
                 localStorage.setItem("readMessages", JSON.stringify(readMessages));
                 loadMessages();
@@ -67,20 +124,19 @@ TEMPLATE = """
                     div.className = "message";
                     div.innerHTML = `<div class="time">[${msg.created_timestamp}]</div><div>${msg.text}</div>`;
 
-                    if(!readMessages.includes(id)) {
+                    if (!readMessages.includes(id)) {
+                        div.classList.add("unread");
                         let btn = document.createElement("button");
                         btn.textContent = "Mark as Read";
                         btn.onclick = () => markAsRead(id);
                         div.appendChild(btn);
                         containerUnread.appendChild(div);
 
-                        // Notification only once per message
-                        if(Notification.permission === "granted" && !notifiedMessages.includes(id)) {
+                        if (Notification.permission === "granted" && !notifiedMessages.includes(id)) {
                             new Notification("New Scratch Message", { body: msg.text });
                             notifiedMessages.push(id);
                             localStorage.setItem("notifiedMessages", JSON.stringify(notifiedMessages));
                         }
-
                     } else {
                         containerRead.appendChild(div);
                     }
@@ -89,13 +145,12 @@ TEMPLATE = """
         }
 
         window.onload = function() {
-            if(localStorage.getItem("username")) document.getElementById("username").value = localStorage.getItem("username");
-            if(localStorage.getItem("password")) document.getElementById("password").value = localStorage.getItem("password");
+            if (localStorage.getItem("username")) document.getElementById("username").value = localStorage.getItem("username");
+            if (localStorage.getItem("password")) document.getElementById("password").value = localStorage.getItem("password");
 
-            // Ask for notification permission
-            if(Notification.permission !== "granted") Notification.requestPermission();
+            if (Notification.permission !== "granted") Notification.requestPermission();
 
-            if(localStorage.getItem("username") && localStorage.getItem("password")) {
+            if (localStorage.getItem("username") && localStorage.getItem("password")) {
                 loadMessages();
                 setInterval(loadMessages, 10000);
             }
@@ -104,6 +159,8 @@ TEMPLATE = """
 </body>
 </html>
 """
+
+# --- backend stays same as before ---
 
 def format_message(msg):
     if msg.type == "followuser":
@@ -159,7 +216,7 @@ def messages():
 
     try:
         s = ScratchSession(flask_session["username"], flask_session["password"])
-        msgs = s.get_messages()
+        msgs = s.get_messages(limit=20)
         return jsonify([
             {
                 "created_timestamp": m.created_timestamp,
